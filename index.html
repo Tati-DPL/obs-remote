@@ -9,6 +9,8 @@
         h1 { color: #00bfff; font-size: 24px; }
         .btn { display: inline-block; width: 85%; max-width: 300px; padding: 15px; margin: 10px; background: #333; border: 2px solid #555; border-radius: 8px; color: white; font-size: 18px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
         .btn:active { background: #00bfff; border-color: #fff; }
+        /* COLOR PARA LA ESCENA SELECCIONADA EN VIVO */
+        .btn.activo { background: #ff4444 !important; border-color: #ff8888 !important; color: #fff !important; }
         #status { font-weight: bold; color: #ff4444; margin-bottom: 20px; }
     </style>
 </head>
@@ -19,18 +21,18 @@
 
     <script>
         // CONFIGURACIÓN DE TU COMPUTADORA
-        var IP_PC = "192.168.1.71"; 
+        var IP_PC = "TU_IP_LOCAL_AQUÍ"; 
         var PUERTO = "4455";
 
         var statusDiv = document.getElementById('status');
         var container = document.getElementById('scenes-container');
         var ws;
+        var escenaActual = "";
 
         function conectar() {
             ws = new WebSocket('ws://' + IP_PC + ':' + PUERTO);
 
             ws.onopen = function() {
-                // OBS v5 sin contraseña exige un saludo de identificación simple (op: 1)
                 var identificar = {
                     "op": 1,
                     "d": { "rpcVersion": 1 }
@@ -41,11 +43,11 @@
             ws.onmessage = function(event) {
                 var msg = JSON.parse(event.data);
                 
-                // Si OBS acepta la conexión libre (op: 2), le pedimos las escenas
                 if (msg.op === 2) {
                     statusDiv.innerHTML = "CONECTADO A OBS";
                     statusDiv.style.color = "#44ff44";
                     
+                    // Pedimos la lista de escenas
                     var pedirEscenas = {
                         "op": 6,
                         "d": { "requestType": "GetSceneList", "requestId": "req_1" }
@@ -53,18 +55,26 @@
                     ws.send(JSON.stringify(pedirEscenas));
                 }
 
-                // Dibujar botones cuando OBS mande la lista
+                // Dibujar botones y detectar cuál es la activa al conectar
                 if (msg.op === 7 && msg.d.requestType === "GetSceneList") {
+                    escenaActual = msg.d.responseData.currentProgramSceneName;
                     var scenes = msg.d.responseData.scenes;
                     container.innerHTML = ""; 
                     for (var i = scenes.length - 1; i >= 0; i--) {
                         crearBoton(scenes[i].sceneName);
                     }
+                    actualizarColorBotones();
+                }
+
+                // ESCUCHAR CAMBIOS DE ESCENA EN TIEMPO REAL (Evento op 5)
+                if (msg.op === 5 && msg.d.eventType === "CurrentProgramSceneChanged") {
+                    escenaActual = msg.d.eventData.sceneName;
+                    actualizarColorBotones();
                 }
             };
 
             ws.onerror = function() {
-                statusDiv.innerHTML = "Error en el WebSocket. ¿Revisaste el Firewall de la PC?";
+                statusDiv.innerHTML = "Error en el WebSocket.";
                 statusDiv.style.color = "#ff4444";
             };
 
@@ -77,6 +87,8 @@
         function crearBoton(nombreEscena) {
             var boton = document.createElement('button');
             boton.className = 'btn';
+            // Guardamos el nombre de la escena en el botón para identificarlo después
+            boton.setAttribute('data-scene', nombreEscena);
             boton.innerHTML = nombreEscena;
             boton.onclick = function() {
                 var cambiarEscena = {
@@ -90,6 +102,18 @@
                 ws.send(JSON.stringify(cambiarEscena));
             };
             container.appendChild(boton);
+        }
+
+        // Función que limpia los colores y pinta únicamente el botón activo
+        function actualizarColorBotones() {
+            var botones = document.getElementsByClassName('btn');
+            for (var i = 0; i < botones.length; i++) {
+                if (botones[i].getAttribute('data-scene') === escenaActual) {
+                    botones[i].className = 'btn activo';
+                } else {
+                    botones[i].className = 'btn';
+                }
+            }
         }
 
         conectar();
