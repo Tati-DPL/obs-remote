@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OBS iOS 8 Remote</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a1a; color: #fff; text-align: center; padding: 20px; }
+        h1 { color: #00bfff; font-size: 24px; }
+        .btn { display: inline-block; width: 85%; max-width: 300px; padding: 15px; margin: 10px; background: #333; border: 2px solid #555; border-radius: 8px; color: white; font-size: 18px; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        .btn:active { background: #00bfff; border-color: #fff; }
+        #status { font-weight: bold; color: #ff4444; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>OBS Control (iOS 8)</h1>
+    <div id="status">Conectando...</div>
+    <div id="scenes-container"></div>
+
+    <script>
+        // CONFIGURACIÓN DE TU COMPUTADORA
+        var IP_PC = "192.168.1.71"; 
+        var PUERTO = "4455";
+
+        var statusDiv = document.getElementById('status');
+        var container = document.getElementById('scenes-container');
+        var ws;
+
+        function conectar() {
+            ws = new WebSocket('ws://' + IP_PC + ':' + PUERTO);
+
+            ws.onopen = function() {
+                // OBS v5 sin contraseña exige un saludo de identificación simple (op: 1)
+                var identificar = {
+                    "op": 1,
+                    "d": { "rpcVersion": 1 }
+                };
+                ws.send(JSON.stringify(identificar));
+            };
+
+            ws.onmessage = function(event) {
+                var msg = JSON.parse(event.data);
+                
+                // Si OBS acepta la conexión libre (op: 2), le pedimos las escenas
+                if (msg.op === 2) {
+                    statusDiv.innerHTML = "CONECTADO A OBS";
+                    statusDiv.style.color = "#44ff44";
+                    
+                    var pedirEscenas = {
+                        "op": 6,
+                        "d": { "requestType": "GetSceneList", "requestId": "req_1" }
+                    };
+                    ws.send(JSON.stringify(pedirEscenas));
+                }
+
+                // Dibujar botones cuando OBS mande la lista
+                if (msg.op === 7 && msg.d.requestType === "GetSceneList") {
+                    var scenes = msg.d.responseData.scenes;
+                    container.innerHTML = ""; 
+                    for (var i = 0; i < scenes.length; i++) {
+                        crearBoton(scenes[i].sceneName);
+                    }
+                }
+            };
+
+            ws.onerror = function() {
+                statusDiv.innerHTML = "Error en el WebSocket. ¿Revisaste el Firewall de la PC?";
+                statusDiv.style.color = "#ff4444";
+            };
+
+            ws.onclose = function() {
+                statusDiv.innerHTML = "Desconectado.";
+                statusDiv.style.color = "#ff4444";
+            };
+        }
+
+        function crearBoton(nombreEscena) {
+            var boton = document.createElement('button');
+            boton.className = 'btn';
+            boton.innerHTML = nombreEscena;
+            boton.onclick = function() {
+                var cambiarEscena = {
+                    "op": 6,
+                    "d": {
+                        "requestType": "SetCurrentProgramScene",
+                        "requestId": "req_2",
+                        "requestData": { "sceneName": nombreEscena }
+                    }
+                };
+                ws.send(JSON.stringify(cambiarEscena));
+            };
+            container.appendChild(boton);
+        }
+
+        conectar();
+    </script>
+</body>
+</html>
