@@ -44,7 +44,7 @@
                 var msg = JSON.parse(event.data);
                 
                 if (msg.op === 2) {
-                    statusDiv.innerHTML = "CONECTADO A OBS";
+                    statusDiv.innerHTML = "CONECTADO";
                     statusDiv.style.color = "#44ff44";
                     
                     // Pedimos la lista de escenas
@@ -79,7 +79,7 @@
             };
 
             ws.onclose = function() {
-                statusDiv.innerHTML = "Desconectado.";
+                statusDiv.innerHTML = "DESCONECTADO";
                 statusDiv.style.color = "#ff4444";
             };
         }
